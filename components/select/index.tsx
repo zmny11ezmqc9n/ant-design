@@ -200,20 +200,24 @@ const InternalSelect = <
 
   const showSuffixIcon = useShowArrow(props.suffixIcon, props.showArrow);
 
-  const mergedPopupMatchSelectWidth =
-    popupMatchSelectWidth ?? dropdownMatchSelectWidth ?? contextPopupMatchSelectWidth;
+  const selectRef = React.useRef<HTMLDivElement>(null);
+  const [selectWidthNum, setSelectWidthNum] = React.useState<number>();
+  const mergedOnOpenChange = onOpenChange || onDropdownVisibleChange;
 
-  // Transform popupMatchSelectWidth to get correct behavior from rc-select:
-  // - When true (default): we want min-width behavior, so pass false to rc-select 
-  // - When false: we want no width constraint, so pass true to rc-select (for now)
-  // - When number: pass the number unchanged
-  const rcSelectDropdownMatchSelectWidth = React.useMemo(() => {
-    if (typeof mergedPopupMatchSelectWidth === 'number') {
-      return mergedPopupMatchSelectWidth;
+  const handleInternalOpenChange = React.useCallback((visible: boolean) => {
+    if (visible && selectRef.current) {
+      const width = selectRef.current.getBoundingClientRect().width;
+      setSelectWidthNum(width);
     }
-    // Invert boolean values to get documented behavior
-    return mergedPopupMatchSelectWidth === false;
-  }, [mergedPopupMatchSelectWidth]);
+    mergedOnOpenChange?.(visible);
+  }, [mergedOnOpenChange]);
+
+  const mergedPopupMatchSelectWidth = React.useMemo(() => {
+    if (typeof popupMatchSelectWidth === 'number' && selectWidthNum && popupMatchSelectWidth < selectWidthNum) {
+      return selectWidthNum;
+    }
+    return popupMatchSelectWidth ?? dropdownMatchSelectWidth ?? contextPopupMatchSelectWidth;
+  }, [popupMatchSelectWidth, selectWidthNum, dropdownMatchSelectWidth, contextPopupMatchSelectWidth]);
 
   const mergedPopupStyle = styles?.popup?.root || contextStyles.popup?.root || dropdownStyle;
 
@@ -341,13 +345,15 @@ const InternalSelect = <
 
   // ====================== Render =======================
   return wrapCSSVar(
-    <RcSelect<ValueType, OptionType>
-      ref={ref}
-      virtual={virtual}
-      showSearch={showSearch}
-      {...selectProps}
-      style={{ ...contextStyles.root, ...styles?.root, ...contextStyle, ...style }}
-      dropdownMatchSelectWidth={rcSelectDropdownMatchSelectWidth}
+    <div ref={selectRef}>
+      <RcSelect<ValueType, OptionType>
+        ref={ref}
+        virtual={virtual}
+        showSearch={showSearch}
+        {...selectProps}
+        style={{ ...contextStyles.root, ...styles?.root, ...contextStyle, ...style}}
+        onDropdownVisibleChange={handleInternalOpenChange}
+      dropdownMatchSelectWidth={mergedPopupMatchSelectWidth}
       transitionName={getTransitionName(rootPrefixCls, 'slide-up', transitionName)}
       builtinPlacements={mergedBuiltinPlacements(builtinPlacements, popupOverflow)}
       listHeight={listHeight}
@@ -370,8 +376,8 @@ const InternalSelect = <
       maxCount={isMultiple ? maxCount : undefined}
       tagRender={isMultiple ? tagRender : undefined}
       dropdownRender={mergedPopupRender}
-      onDropdownVisibleChange={mergedOnOpenChange}
-    />,
+      />
+    </div>,
   );
 };
 
